@@ -1,10 +1,10 @@
-import React, { useState, useEffect, KeyboardEvent } from "react";
-import { useParams, useNavigate } from "react-router-dom";
 import { API } from "aws-amplify";
-import { Conversation } from "../common/types";
-import ChatSidebar from "../components/ChatSidebar";
-import ChatMessages from "../components/ChatMessages";
+import React, { KeyboardEvent, useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import LoadingGrid from "../../public/loading-grid.svg";
+import { Conversation } from "../common/types";
+import ChatMessages from "../components/ChatMessages";
+import ChatSidebar from "../components/ChatSidebar";
 
 const Document: React.FC = () => {
   const params = useParams();
@@ -81,10 +81,11 @@ const Document: React.FC = () => {
 
       setConversation(updatedConversation);
     }
-
+    console.log(conversation)
+    console.log(`/${conversation?.document.documentid}/${conversation?.conversationid}`)
     await API.post(
       "serverless-pdf-chat",
-      `/${conversation?.document.documentid}/${conversation?.conversationid}`,
+      `${conversation?.document.documentid}/${conversation?.conversationid}`,
       {
         body: {
           fileName: conversation?.document.filename,
