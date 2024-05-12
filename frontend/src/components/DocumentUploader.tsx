@@ -1,13 +1,13 @@
-import { ChangeEvent, useState, useEffect } from "react";
-import { API } from "aws-amplify";
-import { filesize } from "filesize";
 import {
-  DocumentIcon,
+  ArrowLeftCircleIcon,
   CheckCircleIcon,
   CloudArrowUpIcon,
+  DocumentIcon,
   XCircleIcon,
-  ArrowLeftCircleIcon,
 } from "@heroicons/react/24/outline";
+import { API } from "aws-amplify";
+import { filesize } from "filesize";
+import { ChangeEvent, useEffect, useState } from "react";
 
 const DocumentUploader: React.FC = () => {
   const [inputStatus, setInputStatus] = useState<string>("idle");
@@ -16,9 +16,8 @@ const DocumentUploader: React.FC = () => {
 
   useEffect(() => {
     if (selectedFile) {
-      if (selectedFile.type === "application/pdf") {
-        setInputStatus("valid");
-      } else {
+      setInputStatus(selectedFile.type === "application/pdf" ? "valid" : "idle");
+      if (selectedFile.type !== "application/pdf") {
         setSelectedFile(null);
       }
     }
@@ -29,22 +28,34 @@ const DocumentUploader: React.FC = () => {
     setSelectedFile(file || null);
   };
 
+  const handleDrop = (event: React.DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const files = event.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      setSelectedFile(file);
+    }
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLLabelElement>) => {
+    event.preventDefault(); // Necessary to allow for drop
+  };
+
   const uploadFile = async () => {
     setButtonStatus("uploading");
-    await API.get("serverless-pdf-chat", "/generate_presigned_url", {
+    const response = await API.get("serverless-pdf-chat", "/generate_presigned_url", {
       headers: { "Content-Type": "application/json" },
       queryStringParameters: {
         file_name: selectedFile?.name,
       },
-    }).then((presigned_url) => {
-      fetch(presigned_url.presignedurl, {
-        method: "PUT",
-        body: selectedFile,
-        headers: { "Content-Type": "application/pdf" },
-      }).then(() => {
-        setButtonStatus("success");
-      });
     });
+    await fetch(response.presignedurl, {
+      method: "PUT",
+      body: selectedFile,
+      headers: { "Content-Type": "application/pdf" },
+    });
+    setButtonStatus("success");
   };
 
   const resetInput = () => {
@@ -57,44 +68,37 @@ const DocumentUploader: React.FC = () => {
     <div>
       <h2 className="text-2xl font-bold pb-4">Add document</h2>
       {inputStatus === "idle" && (
-        <div className="flex items-center justify-center w-full">
-          <label
-            htmlFor="dropzone-file"
-            className="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
-          >
-            <div className="flex flex-col items-center justify-center pt-5 pb-6">
-              <CloudArrowUpIcon className="w-12 h-12 mb-3 text-gray-400" />
-
-              <p className="mb-2 text-sm text-gray-500">
-                <span className="font-semibold">Click to upload</span> your
-                document
-              </p>
-              <p className="text-xs text-gray-500">Only .pdf accepted</p>
-            </div>
-
-            <input
-              onChange={handleFileChange}
-              id="dropzone-file"
-              type="file"
-              className="hidden"
-            />
-          </label>
-        </div>
+      <div className="flex items-center justify-center w-full">
+        <label
+          htmlFor="dropzone-file"
+          className="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100"
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+        >
+          <div className="flex flex-col items-center justify-center pt-5 pb-6">
+            <CloudArrowUpIcon className="w-12 h-12 mb-3 text-gray-400" />
+            <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Click or drop</span> your document here</p>
+            <p className="text-xs text-gray-500">Only .pdf accepted</p>
+          </div>
+          <input
+            onChange={handleFileChange}
+            id="dropzone-file"
+            type="file"
+            className="hidden"
+          />
+        </label>
+      </div>
       )}
-      {inputStatus === "valid" && (
-        <div className="flex items-center justify-center w-full">
-          <div className="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg bg-gray-50">
-            <>
-              <div className="flex flex-row items-center mb-5">
-                <DocumentIcon className="w-14 h-14 text-gray-400" />
-                <div className="flex flex-col ml-2">
-                  <p className="font-bold mb-1">{selectedFile?.name}</p>
-                  <p>
-                    {filesize(selectedFile ? selectedFile.size : 0).toString()}
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-row items-center">
+      {inputStatus === "valid" && selectedFile && (
+        <div className="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+          <div className="flex flex-row items-center mb-5">
+            <DocumentIcon className="w-14 h-14 text-gray-400" />
+            <div className="flex flex-col ml-2">
+              <p className="font-bold mb-1">{selectedFile.name}</p>
+              <p>{filesize(selectedFile.size)}</p>
+            </div>
+          </div>
+          <div className="flex flex-row items-center">
                 {buttonStatus === "ready" && (
                   <button
                     onClick={resetInput}
@@ -175,8 +179,6 @@ const DocumentUploader: React.FC = () => {
                   </button>
                 )}
               </div>
-            </>
-          </div>
         </div>
       )}
     </div>
@@ -184,3 +186,4 @@ const DocumentUploader: React.FC = () => {
 };
 
 export default DocumentUploader;
+
