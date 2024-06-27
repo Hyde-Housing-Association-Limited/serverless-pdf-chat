@@ -1,15 +1,18 @@
-import os, json
+import json
+import os
+import urllib.parse
 from datetime import datetime
+
 import boto3
 import PyPDF2
 import shortuuid
-import urllib
 from aws_lambda_powertools import Logger
 
 DOCUMENT_TABLE = os.environ["DOCUMENT_TABLE"]
 MEMORY_TABLE = os.environ["MEMORY_TABLE"]
 QUEUE = os.environ["QUEUE"]
 BUCKET = os.environ["BUCKET"]
+STEP_FUNCTION = os.environ["STEP_FUNCTION"]
 
 
 ddb = boto3.resource("dynamodb")
@@ -17,6 +20,8 @@ document_table = ddb.Table(DOCUMENT_TABLE)
 memory_table = ddb.Table(MEMORY_TABLE)
 sqs = boto3.client("sqs")
 s3 = boto3.client("s3")
+stef_func = boto3.client("stepfunctions")
+
 logger = Logger()
 
 
@@ -64,4 +69,8 @@ def lambda_handler(event, context):
         "key": key,
         "user": user_id,
     }
-    sqs.send_message(QueueUrl=QUEUE, MessageBody=json.dumps(message))
+    response = stef_func.start_execution(
+        stateMachineArn=STEP_FUNCTION,
+        input=json.dumps(message),
+    )
+    # sqs.send_message(QueueUrl=QUEUE, MessageBody=json.dumps(message))

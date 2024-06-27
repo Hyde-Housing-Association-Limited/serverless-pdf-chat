@@ -20,7 +20,7 @@ Globals:
 
 Parameters:
   Frontend:
-    Default: amplify
+    Default: local
     Type: String
     AllowedValues:
       - local
@@ -37,6 +37,47 @@ Conditions:
     - amplify
 
 Resources:
+  IngestionBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-ingestion-${AWS::Region}-${AWS::AccountId}"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - GET
+              - PUT
+              - HEAD
+              - POST
+              - DELETE
+            AllowedOrigins:
+              - "*"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  IngestionBucketPolicy:
+    Type: "AWS::S3::BucketPolicy"
+    Properties:
+      PolicyDocument:
+        Id: EnforceHttpsPolicy
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EnforceHttpsSid
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !Sub "arn:aws:s3:::${AWS::StackName}-ingestion-${AWS::Region}-${AWS::AccountId}/*"
+              - !Sub "arn:aws:s3:::${AWS::StackName}-ingestion-${AWS::Region}-${AWS::AccountId}"
+            Condition:
+              Bool:
+                "aws:SecureTransport": "false"
+      Bucket: !Ref IngestionBucket
+
   DocumentBucket:
     Type: "AWS::S3::Bucket"
     Properties:
@@ -77,6 +118,73 @@ Resources:
               Bool:
                 "aws:SecureTransport": "false"
       Bucket: !Ref DocumentBucket
+
+  TextractBucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Sub "${AWS::StackName}-textract-${AWS::Region}-${AWS::AccountId}"
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - GET
+              - PUT
+              - HEAD
+              - POST
+              - DELETE
+            AllowedOrigins:
+              - "*"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  TextractBucketPolicy:
+    Type: "AWS::S3::BucketPolicy"
+    Properties:
+      PolicyDocument:
+        Id: EnforceHttpsPolicy
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EnforceHttpsSid
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !Sub "arn:aws:s3:::${TextractBucket}/*"
+              - !Sub "arn:aws:s3:::${TextractBucket}"
+            Condition:
+              Bool:
+                "aws:SecureTransport": "false"
+      Bucket: !Ref TextractBucket
+
+  StitchQueue:
+    Type: AWS::SQS::Queue
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      VisibilityTimeout: 180
+      MessageRetentionPeriod: 3600
+
+  StitchQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref StitchQueue
+      PolicyDocument:
+        Version: "2012-10-17"
+        Id: SecureTransportPolicy
+        Statement:
+          - Sid: AllowSecureTransportOnly
+            Effect: Deny
+            Principal: "*"
+            Action: "SQS:*"
+            Resource: "*"
+            Condition:
+              Bool:
+                aws:SecureTransport: false
 
   EmbeddingQueue:
     Type: AWS::SQS::Queue
@@ -181,10 +289,10 @@ Resources:
       CodeUri: src/generate_presigned_url/
       Policies:
         - S3CrudPolicy:
-            BucketName: !Ref DocumentBucket
+            BucketName: !Ref IngestionBucket
       Environment:
         Variables:
-          BUCKET: !Ref DocumentBucket
+          BUCKET: !Ref IngestionBucket
           REGION: !Sub ${AWS::Region}
       Events:
         Root:
@@ -204,20 +312,26 @@ Resources:
         - DynamoDBCrudPolicy:
             TableName: !Ref MemoryTable
         - S3ReadPolicy:
-            BucketName: !Sub "${AWS::StackName}-${AWS::Region}-${AWS::AccountId}*"
+            BucketName: !Sub "${AWS::StackName}-ingestion-${AWS::Region}-${AWS::AccountId}*"
         - SQSSendMessagePolicy:
             QueueName: !GetAtt EmbeddingQueue.QueueName
+        - Statement:
+            - Sid: "StepFunctions"
+              Effect: "Allow"
+              Action: "states:StartExecution"
+              Resource: "*"
       Environment:
         Variables:
           DOCUMENT_TABLE: !Ref DocumentTable
           MEMORY_TABLE: !Ref MemoryTable
           QUEUE: !GetAtt EmbeddingQueue.QueueName
-          BUCKET: !Sub "${AWS::StackName}-${AWS::Region}-${AWS::AccountId}"
+          BUCKET: !Sub "${AWS::StackName}-ingestion-${AWS::Region}-${AWS::AccountId}"
+          STEP_FUNCTION: !GetAtt TextractStepFunction.Arn
       Events:
         S3Event:
           Type: S3
           Properties:
-            Bucket: !Ref DocumentBucket
+            Bucket: !Ref IngestionBucket
             Events:
               - s3:ObjectCreated:*
             Filter:
@@ -226,6 +340,43 @@ Resources:
                   - Name: suffix
                     Value: .pdf
 
+  StitchTexttractResultsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/stitch_textract_results/
+      Timeout: 180
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DocumentTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MemoryTable
+        - S3CrudPolicy:
+            BucketName: !Ref DocumentBucket
+        - S3CrudPolicy:
+            BucketName: !Ref IngestionBucket
+        - S3CrudPolicy:
+            BucketName: !Ref TextractBucket
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt EmbeddingQueue.QueueName
+        - Statement:
+            - Sid: "StepFunctions"
+              Effect: "Allow"
+              Action: "states:SendTaskSuccess"
+              Resource: "*"
+        - TextractPolicy:
+            Sid: "TextractScopedAccess"
+            Effect: "Allow"
+            Action: "textract:*"
+            Resource: "*"
+
+      Environment:
+        Variables:
+          DOCUMENT_TABLE: !Ref DocumentTable
+          MEMORY_TABLE: !Ref MemoryTable
+          INGESTION_BUCKET: !Ref IngestionBucket
+          DOCUMENT_BUCKET: !Ref DocumentBucket
+          TEXTRACT_BUCKET: !Ref TextractBucket
+          QUEUE: !GetAtt EmbeddingQueue.QueueName
   GetDocumentFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -331,8 +482,7 @@ Resources:
               Effect: "Allow"
               Action: "bedrock:InvokeModel"
               Resource:
-                - !Sub "arn:aws:bedrock:*::foundation-model/${ModelId}"
-                - "arn:aws:bedrock:*::foundation-model/amazon.titan-embed-text-v1"
+                - "arn:aws:bedrock:*::foundation-model/*"
       Environment:
         Variables:
           MEMORY_TABLE: !Ref MemoryTable
@@ -392,6 +542,147 @@ Resources:
       AppId: !GetAtt AmplifyApp.AppId
       EnableAutoBuild: true
 
+  TextractStepFunction:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: !Sub "${AWS::StackName}-text-detection"
+      DefinitionString:
+        Fn::Sub: |
+          {
+            "Comment": "A description of my state machine",
+            "StartAt": "StartDocumentTextDetection",
+            "States": {
+              "StartDocumentTextDetection": {
+                "Type": "Task",
+                "Parameters": {
+                  "DocumentLocation": {
+                    "S3Object": {
+                      "Bucket": "hyde-doc-bot-poc-ingestion-eu-central-1-471112520142",
+                      "Name.$": "$.key"
+                    }
+                  },
+                  "NotificationChannel": {
+                    "RoleArn": "arn:aws:iam::471112520142:role/serverless-pdf-chat-dev-StepFunctionsRole-OeEU11vHM5os",
+                    "SnsTopicArn": "arn:aws:sns:eu-central-1:471112520142:TextDetectionCompleteDev"
+                  },
+                  "OutputConfig": {
+                    "S3Bucket": "hyde-doc-bot-poc-textract-eu-central-1-471112520142",
+                    "S3Prefix": "hyde-doc-bot-poc"
+                  }
+                },
+                "Resource": "arn:aws:states:::aws-sdk:textract:startDocumentTextDetection",
+                "Next": "GetDocumentTextDetection",
+                "ResultPath": "$.StartTextract"
+              },
+              "GetDocumentTextDetection": {
+                "Type": "Task",
+                "Parameters": {
+                  "JobId.$": "$.StartTextract.JobId",
+                  "MaxResults": 1
+                },
+                "Resource": "arn:aws:states:::aws-sdk:textract:getDocumentTextDetection",
+                "Next": "Choice",
+                "ResultPath": "$.TextDetectionResult"
+              },
+              "Choice": {
+                "Type": "Choice",
+                "Choices": [
+                  {
+                    "Variable": "$.TextDetectionResult.JobStatus",
+                    "StringEquals": "SUCCEEDED",
+                    "Next": "StitchText"
+                  }
+                ],
+                "Default": "Wait"
+              },
+              "Wait": {
+                "Type": "Wait",
+                "Seconds": 5,
+                "Next": "GetDocumentTextDetection"
+              },
+              "StitchText": {
+                "Type": "Task",
+                "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+                "Parameters": {
+                  "FunctionName": "arn:aws:lambda:eu-central-1:471112520142:function:hyde-doc-bot-poc-StitchTexttractResultsFunction-VIc2IwSRLoKb",
+                  "Payload": {
+                    "TaskToken.$": "$$.Task.Token",
+                    "JobId.$": "$.StartTextract.JobId",
+                    "documentid.$": "$.documentid",
+                    "key.$": "$.key",
+                    "user.$": "$.user"
+                  }
+                },
+                "Retry": [
+                  {
+                    "ErrorEquals": [
+                      "Lambda.ServiceException",
+                      "Lambda.AWSLambdaException",
+                      "Lambda.SdkClientException",
+                      "Lambda.TooManyRequestsException"
+                    ],
+                    "IntervalSeconds": 1,
+                    "MaxAttempts": 3,
+                    "BackoffRate": 2
+                  }
+                ],
+                "End": true
+              }
+            }
+          }
+      RoleArn: !GetAtt StepFunctionsRole.Arn
+
+  StepFunctionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "states.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "StepFunctionsPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "lambda:InvokeFunction"
+                Resource: "*"
+        - PolicyName: "SNSPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "sns:Publish"
+                Resource: "*"
+        - PolicyName: "TextractPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "textract:*"
+                Resource: "*"
+        - PolicyName: "S3Policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "s3:*"
+                Resource: "*"
+        - PolicyName: "DynamoDBPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "dynamodb:*"
+                Resource: "*"
 Outputs:
   CognitoUserPool:
     Value: !Ref CognitoUserPool
