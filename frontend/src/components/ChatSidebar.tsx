@@ -1,11 +1,11 @@
-import DocumentDetail from "./DocumentDetail";
-import { Conversation } from "../common/types";
-import { getDateTime } from "../common/utilities";
-import { Params } from "react-router-dom";
 import {
   ChatBubbleLeftRightIcon,
   PlusCircleIcon,
 } from "@heroicons/react/24/outline";
+import { Params } from "react-router-dom";
+import { Conversation } from "../common/types";
+import { getDateTime } from "../common/utilities";
+import DocumentDetail from "./DocumentDetail";
 
 interface ChatSidebarProps {
   conversation: Conversation;
@@ -88,6 +88,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                 >
                   <ChatBubbleLeftRightIcon className="w-4 h-4 mr-2" />
                   {getDateTime(conversation.created)}
+                  {conversation.model}
                 </button>
               )}
             </div>

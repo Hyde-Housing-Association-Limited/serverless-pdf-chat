@@ -3,7 +3,7 @@
 
 ### SAM ###
 .aws-sam/
-samconfig.toml
+# samconfig.toml
 
 ### Linux ###
 *~

@@ -1,0 +1,46 @@
+version = 0.1
+[default.deploy.parameters]
+stack_name = "hyde-doc-bot-poc"
+resolve_s3 = true
+s3_prefix = "hyde-doc-bot-poc"
+region = "eu-central-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Frontend=\"local\" Repository=\" \" ModelId=\"anthropic.claude-3-sonnet-20240229-v1:0\""
+image_repositories = []
+tags = [
+    "environment=dev",
+    "project=hyd-gpt",
+    "business_unit=commercial",
+    "application=docbot",
+    "location=aws",
+    "documentation=https://thehydegroup.atlassian.net/wiki/spaces/INFRA/pages/1019674642/DocBot",
+    "iac=sam",
+    "hyde-security-contact=neil.day@hyde-housing.co.uk",
+    "github-repo=https://github.com/Hyde-Housing-Association-Limited/serverless-pdf-chat",
+    "Name=doc-bot",
+    "chaos-testing=opt-out"
+]
+
+[dev.deploy.parameters]
+stack_name = "hyde-doc-bot-poc"
+resolve_s3 = true
+s3_prefix = "hyde-doc-bot-poc"
+region = "eu-central-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Frontend=\"local\" Repository=\" \" ModelId=\"anthropic.claude-3-sonnet-20240229-v1:0\""
+image_repositories = []
+tags = [
+    "environment=dev",
+    "project=hyd-gpt",
+    "business_unit=commercial",
+    "application=docbot",
+    "location=aws",
+    "documentation=https://thehydegroup.atlassian.net/wiki/spaces/INFRA/pages/1019674642/DocBot",
+    "iac=sam",
+    "hyde-security-contact=neil.day@hyde-housing.co.uk",
+    "github-repo=https://github.com/Hyde-Housing-Association-Limited/serverless-pdf-chat",
+    "Name=doc-bot",
+    "chaos-testing=opt-out"
+]

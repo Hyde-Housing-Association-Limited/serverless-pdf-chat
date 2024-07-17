@@ -288,10 +288,16 @@ Resources:
     Properties:
       CodeUri: src/generate_presigned_url/
       Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DocumentTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MemoryTable
         - S3CrudPolicy:
             BucketName: !Ref IngestionBucket
       Environment:
         Variables:
+          DOCUMENT_TABLE: !Ref DocumentTable
+          MEMORY_TABLE: !Ref MemoryTable
           BUCKET: !Ref IngestionBucket
           REGION: !Sub ${AWS::Region}
       Events:
@@ -429,6 +435,7 @@ Resources:
         Variables:
           DOCUMENT_TABLE: !Ref DocumentTable
           MEMORY_TABLE: !Ref MemoryTable
+          MODEL_ID: !Ref ModelId
       Events:
         Root:
           Type: Api
@@ -474,6 +481,8 @@ Resources:
       MemorySize: 2048
       Policies:
         - DynamoDBCrudPolicy:
+            TableName: !Ref DocumentTable
+        - DynamoDBCrudPolicy:
             TableName: !Ref MemoryTable
         - S3CrudPolicy:
             BucketName: !Ref DocumentBucket
@@ -485,6 +494,7 @@ Resources:
                 - "arn:aws:bedrock:*::foundation-model/*"
       Environment:
         Variables:
+          DOCUMENT_TABLE: !Ref DocumentTable
           MEMORY_TABLE: !Ref MemoryTable
           BUCKET: !Ref DocumentBucket
           MODEL_ID: !Ref ModelId
