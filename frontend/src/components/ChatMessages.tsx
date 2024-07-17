@@ -19,7 +19,6 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
   submitMessage,
   handlePromptChange,
   handleKeyPress,
-  handleLLMChange
 }) => {
   return (
     <div className="flex flex-col justify-between h-full overflow-y-auto col-span-8 p-5 border-l border-gray-200">
@@ -101,15 +100,6 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
           )}
 
         </div>
-
-        {/* <select className="inline-flex justify-self-start items-center bg-violet-900 text-white border border-gray-300 focus:outline-none hover:bg-violet-700 focus:ring-4 focus:ring-gray-200 font-medium rounded-lg px-3 py-2 text-sm mt-4 mr-2 mb-2 "
-          onChange={handleLLMChange}
-          defaultValue={"anthropic.claude-3-sonnet-20240229-v1:0"}
-        >
-          <option value="anthropic.claude-3-sonnet-20240229-v1:0">Anthropic Claude 3 - Sonnet</option>
-          <option value="anthropic.claude-3-haiku-20240307-v1:0">Anthropic Claude 3 - Haiku</option>
-          {/* <option value="amazon.titan-embed-text-v2:0">Amazon Titan Text Embeddings V2</option>
-          <option value="cohere.embed-english-v3">Cohere Embed English V3</option></select> */}
       </div>
     </div>
   );

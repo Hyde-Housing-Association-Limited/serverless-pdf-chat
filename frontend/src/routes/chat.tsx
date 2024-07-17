@@ -15,7 +15,6 @@ const Document: React.FC = () => {
   const [messageStatus, setMessageStatus] = useState<string>("idle");
   const [conversationListStatus, setConversationListStatus] = useState<"idle" | "loading">("idle");
   const [prompt, setPrompt] = useState("");
-  const [embeddings_model, setEmbeddings] = useState<string>("amazon.titan-embed-text-v1");
   const [llm_model, setLLM] = useState<string>("anthropic.claude-3-sonnet-20240229-v1:0");
 
   const fetchData = async (conversationid = params.conversationid) => {
@@ -27,7 +26,6 @@ const Document: React.FC = () => {
     );
     setConversation(conversation);
     setLLM(conversation.llm_model);
-    setEmbeddings(conversation.document.embed_model)
     setLoading("idle");
   };
 
