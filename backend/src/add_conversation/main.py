@@ -1,11 +1,14 @@
-import os, json
+import json
+import os
 from datetime import datetime
+
 import boto3
 import shortuuid
 from aws_lambda_powertools import Logger
 
 DOCUMENT_TABLE = os.environ["DOCUMENT_TABLE"]
 MEMORY_TABLE = os.environ["MEMORY_TABLE"]
+MODEL_ID = os.environ["MODEL_ID"]
 
 
 ddb = boto3.resource("dynamodb")
@@ -19,6 +22,9 @@ def lambda_handler(event, context):
     user_id = event["requestContext"]["authorizer"]["claims"]["sub"]
     document_id = event["pathParameters"]["documentid"]
 
+    query_params = event.get("queryStringParameters", {})
+    llm_model = query_params.get("llm_model", MODEL_ID)
+
     response = document_table.get_item(
         Key={"userid": user_id, "documentid": document_id}
     )
@@ -31,6 +37,7 @@ def lambda_handler(event, context):
     conversation = {
         "conversationid": conversation_id,
         "created": timestamp_str,
+        "llm_model": llm_model,
     }
     conversations.append(conversation)
     logger.info({"conversation_new": conversation})

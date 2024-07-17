@@ -1,11 +1,12 @@
-import os, json
+import json
+import os
+
 import boto3
 from aws_lambda_powertools import Logger
-from langchain.embeddings import BedrockEmbeddings
 from langchain.document_loaders import PyPDFLoader
+from langchain.embeddings import BedrockEmbeddings
 from langchain.indexes import VectorstoreIndexCreator
 from langchain.vectorstores import FAISS
-
 
 DOCUMENT_TABLE = os.environ["DOCUMENT_TABLE"]
 BUCKET = os.environ["BUCKET"]
@@ -32,6 +33,22 @@ def lambda_handler(event, context):
     key = event_body["key"]
     file_name_full = key.split("/")[-1]
 
+    response = document_table.get_item(
+        Key={"userid": user_id, "documentid": document_id}
+    )
+
+    model = response["Item"]["embed_model"]
+
+    logger.info(
+        {
+            "user_id": user_id,
+            "document_id": document_id,
+            "key": key,
+            "file_name_full": file_name_full,
+            "model": model,
+        }
+    )
+
     set_doc_status(user_id, document_id, "PROCESSING")
 
     s3.download_file(BUCKET, key, f"/tmp/{file_name_full}")
@@ -44,7 +61,7 @@ def lambda_handler(event, context):
     )
 
     embeddings = BedrockEmbeddings(
-        model_id="amazon.titan-embed-text-v1",
+        model_id=model,
         client=bedrock_runtime,
         region_name="us-east-1",
     )
@@ -58,9 +75,7 @@ def lambda_handler(event, context):
 
     index_from_loader.vectorstore.save_local("/tmp")
 
-    s3.upload_file(
-        "/tmp/index.faiss", BUCKET, f"{user_id}/{file_name_full}/index.faiss"
-    )
-    s3.upload_file("/tmp/index.pkl", BUCKET, f"{user_id}/{file_name_full}/index.pkl")
+    s3.upload_file("/tmp/index.faiss", BUCKET, f"{user_id}/{document_id}/index.faiss")
+    s3.upload_file("/tmp/index.pkl", BUCKET, f"{user_id}/{document_id}/index.pkl")
 
     set_doc_status(user_id, document_id, "READY")

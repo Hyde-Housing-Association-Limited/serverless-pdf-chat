@@ -11,6 +11,7 @@ from langchain.vectorstores import FAISS
 from langchain_community.chat_models import BedrockChat
 
 MEMORY_TABLE = os.environ["MEMORY_TABLE"]
+DOCUMENT_TABLE = os.environ["DOCUMENT_TABLE"]
 BUCKET = os.environ["BUCKET"]
 MODEL_ID = os.environ["MODEL_ID"]
 
@@ -18,23 +19,23 @@ s3 = boto3.client("s3")
 logger = Logger()
 
 
-def get_embeddings():
+def get_embeddings(embeddings_model):
     bedrock_runtime = boto3.client(
         service_name="bedrock-runtime",
         region_name="us-east-1",
     )
 
     embeddings = BedrockEmbeddings(
-        model_id="amazon.titan-embed-text-v1",
+        model_id=embeddings_model,
         client=bedrock_runtime,
         region_name="us-east-1",
     )
     return embeddings
 
 
-def get_faiss_index(embeddings, user, file_name):
-    s3.download_file(BUCKET, f"{user}/{file_name}/index.faiss", "/tmp/index.faiss")
-    s3.download_file(BUCKET, f"{user}/{file_name}/index.pkl", "/tmp/index.pkl")
+def get_faiss_index(embeddings, user, document_id):
+    s3.download_file(BUCKET, f"{user}/{document_id}/index.faiss", "/tmp/index.faiss")
+    s3.download_file(BUCKET, f"{user}/{document_id}/index.pkl", "/tmp/index.pkl")
     faiss_index = FAISS.load_local(
         "/tmp", embeddings, allow_dangerous_deserialization=True
     )
@@ -56,9 +57,16 @@ def create_memory(conversation_id):
     return memory
 
 
-def bedrock_chain(faiss_index, memory, human_input, bedrock_runtime):
+def bedrock_chain(
+    faiss_index,
+    memory,
+    human_input,
+    bedrock_runtime,
+    llm_model=MODEL_ID,
+    temperature=0.0,
+):
 
-    chat = BedrockChat(model_id=MODEL_ID, model_kwargs={"temperature": 0.0})
+    chat = BedrockChat(model_id=llm_model, model_kwargs={"temperature": temperature})
 
     chain = ConversationalRetrievalChain.from_llm(
         llm=chat,
@@ -78,22 +86,40 @@ def lambda_handler(event, context):
     event_body = json.loads(event["body"])
     file_name = event_body["fileName"]
     human_input = event_body["prompt"]
+    document_id = event_body["documentId"]
     conversation_id = event["pathParameters"]["conversationid"]
     user = event["requestContext"]["authorizer"]["claims"]["sub"]
+    embeddings_model = event_body["embeddings_model"]
+    llm_model = event_body["llm_model"]
+    temperature = event_body.get("temp", 0.5)
 
-    embeddings = get_embeddings()
-    faiss_index = get_faiss_index(embeddings, user, file_name)
+    logger.info(
+        {
+            "user": user,
+            "conversation_id": conversation_id,
+            "human_input": human_input,
+            "file_name": file_name,
+            "embeddings_model": embeddings_model,
+            "llm_model": llm_model,
+            "temp": temperature,
+        }
+    )
+
+    embeddings = get_embeddings(embeddings_model)
+    faiss_index = get_faiss_index(embeddings, user, document_id)
     memory = create_memory(conversation_id)
     bedrock_runtime = boto3.client(
         service_name="bedrock-runtime",
-        region_name="us-east-1",
+        region_name="eu-central-1",
     )
 
-    response = bedrock_chain(faiss_index, memory, human_input, bedrock_runtime)
+    response = bedrock_chain(
+        faiss_index, memory, human_input, bedrock_runtime, llm_model, temperature
+    )
     if response:
-        print(f"{MODEL_ID} -\nPrompt: {human_input}\n\nResponse: {response['answer']}")
+        print(f"{llm_model} -\nPrompt: {human_input}\n\nResponse: {response['answer']}")
     else:
-        raise ValueError(f"Unsupported model ID: {MODEL_ID}")
+        raise ValueError(f"Unsupported model ID: {llm_model}")
 
     logger.info(str(response["answer"]))
 

@@ -14,6 +14,7 @@ sqs = boto3.client("sqs")
 s3 = boto3.client("s3")
 ddb = boto3.resource("dynamodb")
 sfn = boto3.client("stepfunctions")
+textract = boto3.client("textract")
 
 document_table = ddb.Table(DOCUMENT_TABLE)
 logger = Logger()
@@ -21,17 +22,19 @@ logger = Logger()
 
 @logger.inject_lambda_context(log_event=True)
 def lambda_handler(event, context):
-    print(event)
     document_id = event["documentid"]
     user_id = event["user"]
     key = event["key"]
 
     blocks = []
-    client = boto3.client("textract")
-    response = client.get_document_text_detection(JobId=event["JobId"], MaxResults=1000)
+
+    response = textract.get_document_text_detection(
+        JobId=event["JobId"], MaxResults=1000
+    )
+
     blocks.append(response["Blocks"])
     while "NextToken" in response:
-        response = client.get_document_text_detection(
+        response = textract.get_document_text_detection(
             JobId=event["JobId"], NextToken=response["NextToken"], MaxResults=1000
         )
         blocks.append(response["Blocks"])
@@ -43,13 +46,11 @@ def lambda_handler(event, context):
 
     set_doc_status(user_id, document_id, "UPLOADED")
 
-    # End the step function
     sfn.send_task_success(
         taskToken=event["TaskToken"],
         output=json.dumps({"documentid": document_id, "key": key, "user": user_id}),
     )
 
-    # send message to sqs
     message = {
         "documentid": document_id,
         "key": key,
