@@ -1,5 +1,4 @@
 import { CloudIcon } from "@heroicons/react/24/outline";
-import GitHub from "../../public/github.svg";
 
 const Footer: React.FC = () => {
   return (
@@ -11,7 +10,7 @@ const Footer: React.FC = () => {
             <CloudIcon className="w-5 h-5 mr-1.5 ml-1.5" />
             INFRA
           </div>
-          <div className="inline-flex items-center hover:underline underline-offset-2">
+          {/* <div className="inline-flex items-center hover:underline underline-offset-2">
             <img
               src={GitHub}
               alt="React Logo"
@@ -21,7 +20,7 @@ const Footer: React.FC = () => {
             <a href="https://github.com/Hyde-Housing-Association-Limited/serverless-pdf-chat">
               Source code on GitHub
             </a>
-          </div>
+          </div> */}
         </div>
       </footer>
     </div>
