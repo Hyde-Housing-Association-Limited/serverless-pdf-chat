@@ -147,13 +147,13 @@ const DocumentUploader: React.FC = () => {
                   <CloudArrowUpIcon className="w-5 h-5 mr-1.5" />
                   Upload document
                 </button>
-                <select className="inline-flex items-center bg-violet-900 text-white border border-gray-300 focus:outline-none hover:bg-violet-700 focus:ring-4 focus:ring-gray-200 font-medium rounded-lg px-3 py-2 text-sm mr-2 mb-2 "
+                {/* <select className="inline-flex items-center bg-violet-900 text-white border border-gray-300 focus:outline-none hover:bg-violet-700 focus:ring-4 focus:ring-gray-200 font-medium rounded-lg px-3 py-2 text-sm mr-2 mb-2 "
                   onChange={handleModelChange}
                 >
                   <option value="amazon.titan-embed-text-v1">Amazon Titan Embeddings G1 - Text v1.2</option>
                   <option value="amazon.titan-embed-text-v2:0">Amazon Titan Text Embeddings V2</option>
                   <option value="cohere.embed-english-v3">Cohere Embed English V3</option>
-                </select>
+                </select> */}
               </>
             )}
             {buttonStatus === "uploading" && (
