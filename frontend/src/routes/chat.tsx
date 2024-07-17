@@ -1,5 +1,5 @@
 import { API } from "aws-amplify";
-import React, { KeyboardEvent, useEffect, useState } from "react";
+import React, { ChangeEvent, KeyboardEvent, useEffect, useState, } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import LoadingGrid from "../../public/loading-grid.svg";
 import { Conversation } from "../common/types";
@@ -13,10 +13,10 @@ const Document: React.FC = () => {
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [loading, setLoading] = React.useState<string>("idle");
   const [messageStatus, setMessageStatus] = useState<string>("idle");
-  const [conversationListStatus, setConversationListStatus] = useState<
-    "idle" | "loading"
-  >("idle");
+  const [conversationListStatus, setConversationListStatus] = useState<"idle" | "loading">("idle");
   const [prompt, setPrompt] = useState("");
+  const [embeddings_model, setEmbeddings] = useState<string>("amazon.titan-embed-text-v1");
+  const [llm_model, setLLM] = useState<string>("anthropic.claude-3-sonnet-20240229-v1:0");
 
   const fetchData = async (conversationid = params.conversationid) => {
     setLoading("loading");
@@ -26,12 +26,18 @@ const Document: React.FC = () => {
       {}
     );
     setConversation(conversation);
+    setLLM(conversation.llm_model);
+    setEmbeddings(conversation.document.embed_model)
     setLoading("idle");
   };
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  const handleLLMChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    setLLM(event.target.value);
+  }
 
   const handlePromptChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setPrompt(event.target.value);
@@ -41,7 +47,7 @@ const Document: React.FC = () => {
     setConversationListStatus("loading");
     const newConversation = await API.post(
       "serverless-pdf-chat",
-      `/doc/${params.documentid}`,
+      `/doc/${params.documentid}?llm_model='${llm_model}'`,
       {}
     );
     fetchData(newConversation.conversationid);
@@ -81,8 +87,7 @@ const Document: React.FC = () => {
 
       setConversation(updatedConversation);
     }
-    console.log(conversation)
-    console.log(`/${conversation?.document.documentid}/${conversation?.conversationid}`)
+
     await API.post(
       "serverless-pdf-chat",
       `${conversation?.document.documentid}/${conversation?.conversationid}`,
@@ -90,6 +95,10 @@ const Document: React.FC = () => {
         body: {
           fileName: conversation?.document.filename,
           prompt: prompt,
+          llm_model: llm_model,
+          documentId: conversation?.document.documentid,
+          embeddings_model: conversation?.document.embed_model,
+
         },
       }
     );
@@ -97,6 +106,12 @@ const Document: React.FC = () => {
     fetchData(conversation?.conversationid);
     setMessageStatus("idle");
   };
+
+  useEffect(() => {
+    if (conversation) {
+      setLLM(conversation.llm_model || "anthropic.claude-3-sonnet-20240229-v1:0");
+    }
+  }, [conversation]);
 
   return (
     <div className="">
@@ -121,6 +136,7 @@ const Document: React.FC = () => {
             submitMessage={submitMessage}
             handleKeyPress={handleKeyPress}
             handlePromptChange={handlePromptChange}
+            handleLLMChange={handleLLMChange}
           />
         </div>
       )}

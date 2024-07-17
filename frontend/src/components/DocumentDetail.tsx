@@ -1,14 +1,13 @@
-import { Document } from "../common/types";
-import { getDateTime } from "../common/utilities";
-import { filesize } from "filesize";
 import {
-  DocumentIcon,
+  CheckCircleIcon,
   CircleStackIcon,
   ClockIcon,
-  CheckCircleIcon,
   CloudIcon,
   CogIcon,
+  DocumentIcon,
 } from "@heroicons/react/24/outline";
+import { Document } from "../common/types";
+import { getDateTime } from "../common/utilities";
 
 const DocumentDetail: React.FC<Document> = (document: Document) => {
   return (
@@ -23,12 +22,13 @@ const DocumentDetail: React.FC<Document> = (document: Document) => {
         </div>
         <div className="inline-flex items-center">
           <CircleStackIcon className="w-4 h-4 mr-2" />
-          {filesize(Number(document.filesize)).toString()}
+          {document.filesize}
         </div>
         <div className="inline-flex items-center">
           <ClockIcon className="w-4 h-4 mr-2" />
           {getDateTime(document.created)}
         </div>
+        {document.embed_model}
         {document.docstatus === "UPLOADED" && (
           <div className="flex flex-row justify-center pt-4">
             <span className="inline-flex items-center self-start bg-gray-100 text-gray-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded">
